@@ -1,0 +1,6 @@
+# Mensagens — Cenário ESPARSO
+# TTL reduzido para refletir recursos limitados.
+# Formato: tempo, src, dst, ttl, conteudo
+0.0, 1, 5, 5, SOS: nó 1 tenta alcançar nó 5
+0.0, 1, 4, 5, Relatório de nó 1 para nó 4
+0.0, 3, 1, 5, Nó 3 respondendo ao nó 1

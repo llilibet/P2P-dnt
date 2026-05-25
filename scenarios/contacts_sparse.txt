@@ -1,0 +1,10 @@
+# Cenário 2 — ESPARSO
+# 5 nós com poucos contatos e grandes lacunas temporais.
+# Expectativa: taxa de entrega reduzida, alta latência quando entregue,
+#              alguns pares de nós podem nunca se comunicar.
+#
+# Formato: tempo_inicio, tempo_fim, noA, noB
+ 0.0,  2.0, 1, 2
+10.0, 12.0, 3, 4
+20.0, 22.0, 2, 3
+30.0, 32.0, 4, 5

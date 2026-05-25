@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DTN P2P Simulator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; }
+    .input-base {
+      background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem;
+      color: #e2e8f0; width: 100%; padding: 0.5rem 0.75rem;
+      font-size: 0.875rem; outline: none; transition: border-color .2s;
+    }
+    .input-base:focus { border-color: #6366f1; }
+    textarea.input-base { font-family: 'Consolas', monospace; resize: vertical; }
+    .btn-primary {
+      background: #6366f1; color: #fff; border: none; border-radius: 0.5rem;
+      padding: 0.6rem 1.4rem; font-weight: 600; cursor: pointer;
+      transition: background .2s, transform .1s;
+    }
+    .btn-primary:hover { background: #4f46e5; }
+    .btn-primary:active { transform: scale(0.97); }
+    .btn-primary:disabled { background: #334155; color: #64748b; cursor: not-allowed; }
+    .btn-sm {
+      background: #334155; color: #cbd5e1; border: none; border-radius: 0.4rem;
+      padding: 0.3rem 0.8rem; font-size: 0.8rem; cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-sm:hover { background: #475569; }
+    .btn-sm.active { background: #6366f1; color: #fff; }
+    .tab { cursor: pointer; padding: 0.5rem 1rem; border-radius: 0.4rem 0.4rem 0 0;
+           font-weight: 500; font-size: 0.875rem; color: #94a3b8; transition: all .15s; }
+    .tab:hover { color: #e2e8f0; background: #1e293b; }
+    .tab.active { color: #a5b4fc; border-bottom: 2px solid #6366f1; }
+    .metric-card { background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem; padding: 1rem; }
+    .log-box { background: #020617; border: 1px solid #1e293b; border-radius: 0.5rem;
+               padding: 1rem; font-family: 'Consolas', monospace; font-size: 0.75rem;
+               color: #94a3b8; white-space: pre-wrap; max-height: 420px; overflow-y: auto; }
+    .badge { display: inline-block; padding: .15rem .5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
+    .badge-green  { background: #14532d; color: #4ade80; }
+    .badge-yellow { background: #422006; color: #fbbf24; }
+    .badge-gray   { background: #1e293b; color: #94a3b8; }
+    #graph-svg { width: 100%; height: 360px; }
+    .node-circle { stroke-width: 2.5; cursor: pointer; transition: r .15s; }
+    .node-label { font-size: 12px; font-weight: 700; fill: #e2e8f0; pointer-events: none; }
+    .link { stroke: #334155; stroke-width: 2; }
+    .link.highlight { stroke: #6366f1; }
+    .tooltip {
+      position: absolute; background: #1e293b; border: 1px solid #4f46e5;
+      border-radius: 0.5rem; padding: .5rem .75rem; font-size: .8rem;
+      pointer-events: none; opacity: 0; transition: opacity .15s; z-index: 99;
+      color: #e2e8f0; max-width: 260px;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 3px solid #334155;
+               border-top-color: #6366f1; border-radius: 50%; animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .fade-in { animation: fadeIn .3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    table { border-collapse: collapse; width: 100%; font-size: 0.8rem; }
+    th { background: #1e293b; color: #94a3b8; padding: .5rem .75rem; text-align: left; font-weight: 600; }
+    td { padding: .45rem .75rem; border-bottom: 1px solid #1e293b; }
+    tr:hover td { background: #1e293b33; }
+    .select-base {
+      background: #0f172a; border: 1px solid #334155; border-radius: 0.5rem;
+      color: #e2e8f0; padding: 0.5rem 0.75rem; font-size: 0.875rem; outline: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- Tooltip -->
+<div id="tooltip" class="tooltip"></div>
+
+<!-- Header -->
+<header class="border-b border-slate-800 px-6 py-4 flex items-center gap-3">
+  <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">D</div>
+  <div>
+    <h1 class="text-lg font-bold text-slate-100 leading-tight">DTN P2P Simulator</h1>
+    <p class="text-xs text-slate-500">Roteamento Epidêmico &amp; PROPHET</p>
+  </div>
+</header>
+
+<main class="flex gap-5 p-5" style="min-height: calc(100vh - 65px);">
+
+  <!-- ── Painel de Configuração ─────────────────────────────────── -->
+  <aside class="card p-5 flex flex-col gap-5 w-96 flex-shrink-0" style="align-self: flex-start;">
+    <h2 class="font-semibold text-slate-300 text-sm uppercase tracking-wider">Configuração</h2>
+
+    <!-- Cenários rápidos -->
+    <div>
+      <label class="block text-xs text-slate-400 mb-2">Cenário rápido</label>
+      <div class="flex gap-2" id="scenario-btns">
+        <button class="btn-sm" onclick="loadScenario('chain')">Chain</button>
+        <button class="btn-sm" onclick="loadScenario('sparse')">Sparse</button>
+        <button class="btn-sm" onclick="loadScenario('dense')">Dense</button>
+      </div>
+    </div>
+
+    <!-- Contatos -->
+    <div>
+      <label class="block text-xs text-slate-400 mb-1">
+        Arquivo de contatos
+        <span class="text-slate-600 ml-1">tempo_ini, tempo_fim, nóA, nóB</span>
+      </label>
+      <textarea id="contacts-input" class="input-base" rows="7" placeholder="0.0, 5.0, 1, 2&#10;5.1, 8.0, 2, 3&#10;8.2, 12.0, 3, 1"></textarea>
+    </div>
+
+    <!-- Mensagens -->
+    <div>
+      <label class="block text-xs text-slate-400 mb-1">
+        Arquivo de mensagens
+        <span class="text-slate-600 ml-1">tempo, src, dst, ttl, conteúdo</span>
+      </label>
+      <textarea id="messages-input" class="input-base" rows="4" placeholder="0.0, 1, 3, 5, Olá!&#10;2.0, 2, 1, 8, Teste"></textarea>
+    </div>
+
+    <!-- Roteamento + TTL -->
+    <div class="flex gap-3">
+      <div class="flex-1">
+        <label class="block text-xs text-slate-400 mb-1">Roteamento</label>
+        <select id="routing-select" class="select-base w-full">
+          <option value="epidemic">Epidemic</option>
+          <option value="prophet">PROPHET</option>
+        </select>
+      </div>
+      <div class="w-24">
+        <label class="block text-xs text-slate-400 mb-1">TTL padrão</label>
+        <input id="ttl-input" type="number" min="1" max="50" value="10" class="input-base" />
+      </div>
+    </div>
+
+    <!-- Mensagens extras -->
+    <div>
+      <div class="flex items-center justify-between mb-2">
+        <label class="text-xs text-slate-400">Mensagens extras</label>
+        <button class="btn-sm" onclick="addExtraMsg()">+ Adicionar</button>
+      </div>
+      <div id="extra-msgs" class="flex flex-col gap-2"></div>
+    </div>
+
+    <!-- Botão simular -->
+    <button id="run-btn" class="btn-primary w-full mt-1" onclick="runSimulation()">
+      ▶ Simular
+    </button>
+  </aside>
+
+  <!-- ── Painel de Resultados ──────────────────────────────────── -->
+  <section class="flex-1 flex flex-col gap-5 min-w-0">
+
+    <!-- Placeholder inicial -->
+    <div id="placeholder" class="card flex items-center justify-center flex-1" style="min-height: 300px;">
+      <div class="text-center">
+        <div class="text-5xl mb-3">📡</div>
+        <p class="text-slate-500 text-sm">Configure e execute uma simulação para ver os resultados</p>
+      </div>
+    </div>
+
+    <!-- Resultados (oculto até simular) -->
+    <div id="results" class="hidden fade-in flex flex-col gap-5">
+
+      <!-- Métricas rápidas -->
+      <div id="metrics-row" class="grid grid-cols-2 gap-3" style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));"></div>
+
+      <!-- Tabs -->
+      <div class="card overflow-hidden">
+        <div class="flex border-b border-slate-800 px-4 pt-2 gap-1 bg-slate-900">
+          <div class="tab active" onclick="showTab('graph')" id="tab-graph">Grafo</div>
+          <div class="tab" onclick="showTab('transmissions')" id="tab-transmissions">Transmissões</div>
+          <div class="tab" onclick="showTab('messages')" id="tab-messages">Mensagens</div>
+          <div class="tab" onclick="showTab('log')" id="tab-log">Log</div>
+          <div class="tab" id="tab-prophet" onclick="showTab('prophet')" style="display:none">PROPHET</div>
+        </div>
+
+        <!-- Graph -->
+        <div id="panel-graph" class="p-4">
+          <svg id="graph-svg"></svg>
+          <div class="flex gap-4 mt-2 text-xs text-slate-500 justify-end">
+            <span><span class="inline-block w-3 h-3 rounded-full bg-indigo-500 mr-1"></span>Origem</span>
+            <span><span class="inline-block w-3 h-3 rounded-full bg-emerald-500 mr-1"></span>Destino (entregue)</span>
+            <span><span class="inline-block w-3 h-3 rounded-full bg-amber-400 mr-1"></span>Destino (não entregue)</span>
+            <span><span class="inline-block w-3 h-3 rounded-full bg-slate-600 mr-1"></span>Intermediário</span>
+          </div>
+        </div>
+
+        <!-- Transmissions -->
+        <div id="panel-transmissions" class="p-4 hidden overflow-x-auto">
+          <table>
+            <thead><tr>
+              <th>#</th><th>Mensagem</th><th>De</th><th>Para</th><th>Tempo</th>
+            </tr></thead>
+            <tbody id="tx-tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- Messages -->
+        <div id="panel-messages" class="p-4 hidden overflow-x-auto">
+          <table>
+            <thead><tr>
+              <th>ID</th><th>Origem</th><th>Destino</th><th>Conteúdo</th>
+              <th>Criado em</th><th>TTL</th><th>Entregue?</th><th>Latência</th>
+            </tr></thead>
+            <tbody id="msg-tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- Log -->
+        <div id="panel-log" class="p-4 hidden">
+          <div id="log-content" class="log-box"></div>
+        </div>
+
+        <!-- Prophet -->
+        <div id="panel-prophet" class="p-4 hidden">
+          <pre id="prophet-content" class="log-box"></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   State
+══════════════════════════════════════════════════════════════ */
+let lastResult = null;
+
+/* ═══════════════════════════════════════════════════════════════
+   Scenario loading
+══════════════════════════════════════════════════════════════ */
+async function loadScenario(name) {
+  const btns = document.querySelectorAll('#scenario-btns .btn-sm');
+  btns.forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+
+  const res = await fetch(`/api/scenario/${name}`);
+  if (!res.ok) return alert('Erro ao carregar cenário');
+  const data = await res.json();
+  if (data.contacts) document.getElementById('contacts-input').value = data.contacts;
+  if (data.messages) document.getElementById('messages-input').value = data.messages;
+  else document.getElementById('messages-input').value = '';
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Extra messages UI
+══════════════════════════════════════════════════════════════ */
+let extraMsgId = 0;
+function addExtraMsg() {
+  const id = ++extraMsgId;
+  const div = document.createElement('div');
+  div.id = `em-${id}`;
+  div.className = 'flex gap-1 items-center';
+  div.innerHTML = `
+    <input type="number" placeholder="De" class="input-base w-16 text-center" id="em-from-${id}" min="0">
+    <input type="number" placeholder="Para" class="input-base w-16 text-center" id="em-to-${id}" min="0">
+    <input type="text" placeholder="Conteúdo" class="input-base flex-1" id="em-content-${id}">
+    <button class="btn-sm text-red-400" onclick="document.getElementById('em-${id}').remove()">✕</button>
+  `;
+  document.getElementById('extra-msgs').appendChild(div);
+}
+
+function collectExtraMsgs() {
+  const results = [];
+  document.querySelectorAll('[id^="em-from-"]').forEach(el => {
+    const id = el.id.split('-')[2];
+    const from    = el.value.trim();
+    const to      = document.getElementById(`em-to-${id}`)?.value.trim();
+    const content = document.getElementById(`em-content-${id}`)?.value.trim();
+    if (from && to) results.push({ from: parseInt(from), to: parseInt(to), content: content || `extra ${from}→${to}` });
+  });
+  return results;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Run simulation
+══════════════════════════════════════════════════════════════ */
+async function runSimulation() {
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  const payload = {
+    contacts:       document.getElementById('contacts-input').value,
+    messages:       document.getElementById('messages-input').value,
+    routing:        document.getElementById('routing-select').value,
+    ttl:            parseInt(document.getElementById('ttl-input').value) || 10,
+    extra_messages: collectExtraMsgs(),
+  };
+
+  try {
+    const res = await fetch('/api/simulate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      alert('Erro: ' + (data.error || 'Falha desconhecida'));
+      return;
+    }
+    lastResult = data;
+    renderResults(data);
+  } catch (e) {
+    alert('Erro de rede: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '▶ Simular';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Render results
+══════════════════════════════════════════════════════════════ */
+function renderResults(data) {
+  document.getElementById('placeholder').classList.add('hidden');
+  const resultsEl = document.getElementById('results');
+  resultsEl.classList.remove('hidden');
+  resultsEl.classList.add('fade-in');
+
+  renderMetrics(data.report, data.routing);
+  renderGraph(data);
+  renderTransmissions(data.transmissions);
+  renderMessages(data.messages);
+  renderLog(data.logs);
+  renderProphet(data.prophet_table);
+  showTab('graph');
+}
+
+/* ── Metrics ── */
+function renderMetrics(r, routing) {
+  const row = document.getElementById('metrics-row');
+  const pct = (r.delivery_rate * 100).toFixed(1);
+  const rateColor = r.delivery_rate >= 0.8 ? 'text-emerald-400' : r.delivery_rate >= 0.5 ? 'text-amber-400' : 'text-red-400';
+  row.innerHTML = `
+    ${metric('Taxa de Entrega', `${pct}%`, rateColor)}
+    ${metric('Entregues / Total', `${r.delivered} / ${r.total_messages}`, 'text-slate-200')}
+    ${metric('Latência Média', r.avg_latency ? r.avg_latency.toFixed(2) + 's' : '—', 'text-slate-200')}
+    ${metric('Latência Mín / Máx', r.min_latency ? `${r.min_latency.toFixed(1)}s / ${r.max_latency.toFixed(1)}s` : '—', 'text-slate-200')}
+    ${metric('Total Transmissões', r.total_transmissions, 'text-indigo-400')}
+    ${metric('Overhead (tx/entrega)', r.overhead_ratio === null || !isFinite(r.overhead_ratio) ? '∞' : r.overhead_ratio.toFixed(2), 'text-slate-200')}
+    ${metric('Algoritmo', routing.toUpperCase(), routing === 'prophet' ? 'text-violet-400' : 'text-sky-400')}
+  `;
+}
+
+function metric(label, value, cls) {
+  return `<div class="metric-card">
+    <div class="text-xs text-slate-500 mb-1">${label}</div>
+    <div class="text-xl font-bold ${cls}">${value}</div>
+  </div>`;
+}
+
+/* ── Graph ── */
+function renderGraph(data) {
+  const svg = d3.select('#graph-svg');
+  svg.selectAll('*').remove();
+
+  const w = document.getElementById('graph-svg').clientWidth || 700;
+  const h = 360;
+
+  const sourceIds = new Set(data.messages.map(m => m.source));
+  const destIds   = new Set(data.messages.map(m => m.destination));
+  const deliveredDests = new Set(
+    data.messages.filter(m => m.delivered).map(m => m.destination)
+  );
+
+  // Count contacts per edge
+  const edgeCount = {};
+  data.contacts.forEach(c => {
+    const key = [Math.min(c.a, c.b), Math.max(c.a, c.b)].join('-');
+    edgeCount[key] = (edgeCount[key] || 0) + 1;
+  });
+
+  const nodeIds = data.nodes.map(n => n.id);
+  const links   = Object.entries(edgeCount).map(([k, count]) => {
+    const [s, t] = k.split('-').map(Number);
+    return { source: s, target: t, count };
+  });
+
+  const nodes = nodeIds.map(id => ({ id, ...data.nodes.find(n => n.id === id) }));
+
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(90))
+    .force('charge', d3.forceManyBody().strength(-350))
+    .force('center', d3.forceCenter(w / 2, h / 2))
+    .force('collision', d3.forceCollide(40));
+
+  const defs = svg.append('defs');
+  defs.append('marker')
+    .attr('id', 'arrow')
+    .attr('viewBox', '0 -5 10 10').attr('refX', 22).attr('refY', 0)
+    .attr('markerWidth', 6).attr('markerHeight', 6).attr('orient', 'auto')
+    .append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', '#6366f1');
+
+  const link = svg.append('g').selectAll('line').data(links).join('line')
+    .attr('class', 'link')
+    .attr('stroke-width', d => Math.min(1 + d.count, 5))
+    .attr('stroke', '#334155');
+
+  const node = svg.append('g').selectAll('g').data(nodes).join('g')
+    .call(d3.drag()
+      .on('start', (event, d) => { if (!event.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+      .on('drag',  (event, d) => { d.fx = event.x; d.fy = event.y; })
+      .on('end',   (event, d) => { if (!event.active) sim.alphaTarget(0); d.fx = null; d.fy = null; })
+    );
+
+  node.append('circle')
+    .attr('class', 'node-circle')
+    .attr('r', 20)
+    .attr('fill', d => {
+      if (sourceIds.has(d.id) && (deliveredDests.has(d.id) || destIds.has(d.id))) return '#7c3aed';
+      if (sourceIds.has(d.id))   return '#6366f1';
+      if (deliveredDests.has(d.id)) return '#10b981';
+      if (destIds.has(d.id))     return '#f59e0b';
+      return '#475569';
+    })
+    .attr('stroke', d => {
+      if (d.delivered_count > 0) return '#4ade80';
+      return '#64748b';
+    })
+    .on('mouseover', (event, d) => {
+      const tip = document.getElementById('tooltip');
+      tip.innerHTML = `<b>Nó ${d.id}</b><br>
+        Buffer: ${d.buffer_size} msg<br>
+        Entregues: ${d.delivered_count}<br>
+        IDs: ${d.delivered_msgs.join(', ') || '—'}`;
+      tip.style.opacity = '1';
+      tip.style.left = (event.pageX + 12) + 'px';
+      tip.style.top  = (event.pageY - 8)  + 'px';
+    })
+    .on('mousemove', (event) => {
+      const tip = document.getElementById('tooltip');
+      tip.style.left = (event.pageX + 12) + 'px';
+      tip.style.top  = (event.pageY - 8)  + 'px';
+    })
+    .on('mouseout', () => { document.getElementById('tooltip').style.opacity = '0'; });
+
+  node.append('text')
+    .attr('class', 'node-label')
+    .attr('text-anchor', 'middle')
+    .attr('dy', '0.35em')
+    .text(d => d.id);
+
+  sim.on('tick', () => {
+    link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+        .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node.attr('transform', d => `translate(${
+      Math.max(22, Math.min(w - 22, d.x))},${Math.max(22, Math.min(h - 22, d.y))})`);
+  });
+}
+
+/* ── Transmissions table ── */
+function renderTransmissions(txs) {
+  const tbody = document.getElementById('tx-tbody');
+  if (!txs.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-slate-500 py-4">Nenhuma transmissão registrada</td></tr>';
+    return;
+  }
+  tbody.innerHTML = txs.map((tx, i) => `
+    <tr>
+      <td class="text-slate-500">${i + 1}</td>
+      <td><span class="font-mono text-indigo-300">${tx.msg_id}</span></td>
+      <td><span class="badge badge-gray">Nó ${tx.from}</span></td>
+      <td><span class="badge badge-gray">Nó ${tx.to}</span></td>
+      <td class="text-slate-400">${tx.time.toFixed(1)}s</td>
+    </tr>`).join('');
+}
+
+/* ── Messages table ── */
+function renderMessages(msgs) {
+  const tbody = document.getElementById('msg-tbody');
+  tbody.innerHTML = msgs.map(m => {
+    const delivered = m.delivered
+      ? `<span class="badge badge-green">✓ Sim</span>`
+      : `<span class="badge badge-yellow">✗ Não</span>`;
+    const latency = m.delivered && m.delivered_at !== null
+      ? (m.delivered_at - m.created_at).toFixed(2) + 's' : '—';
+    const content = m.content.length > 30 ? m.content.slice(0, 30) + '…' : m.content;
+    return `<tr>
+      <td class="font-mono text-indigo-300 text-xs">${m.msg_id}</td>
+      <td>Nó ${m.source}</td>
+      <td>Nó ${m.destination}</td>
+      <td title="${escHtml(m.content)}">${escHtml(content)}</td>
+      <td class="text-slate-400">${m.created_at.toFixed(1)}s</td>
+      <td>${m.ttl}</td>
+      <td>${delivered}</td>
+      <td class="text-slate-400">${latency}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── Log ── */
+function renderLog(logs) {
+  const el = document.getElementById('log-content');
+  el.textContent = logs || '(sem saída)';
+  el.scrollTop = 0;
+}
+
+/* ── Prophet ── */
+function renderProphet(table) {
+  const tab = document.getElementById('tab-prophet');
+  const panel = document.getElementById('panel-prophet');
+  if (table) {
+    tab.style.display = '';
+    document.getElementById('prophet-content').textContent = table;
+  } else {
+    tab.style.display = 'none';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Tabs
+══════════════════════════════════════════════════════════════ */
+function showTab(name) {
+  ['graph', 'transmissions', 'messages', 'log', 'prophet'].forEach(t => {
+    document.getElementById(`panel-${t}`).classList.add('hidden');
+    document.getElementById(`tab-${t}`)?.classList.remove('active');
+  });
+  document.getElementById(`panel-${name}`).classList.remove('hidden');
+  document.getElementById(`tab-${name}`)?.classList.add('active');
+
+  if (name === 'graph' && lastResult) {
+    // Re-render graph to pick up correct SVG width after tab becomes visible
+    setTimeout(() => renderGraph(lastResult), 50);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Helpers
+══════════════════════════════════════════════════════════════ */
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* Load default contacts on page load */
+window.addEventListener('DOMContentLoaded', () => {
+  fetch('/api/scenario/chain')
+    .then(r => r.json())
+    .then(d => {
+      if (d.contacts) document.getElementById('contacts-input').value = d.contacts;
+      if (d.messages) document.getElementById('messages-input').value = d.messages;
+      document.querySelector('#scenario-btns .btn-sm').classList.add('active');
+    })
+    .catch(() => {});
+});
+
+/* Enter key in extra message inputs triggers simulation */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.ctrlKey) runSimulation();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+# Mensagens — Cenário DENSO
+# Formato: tempo, src, dst, ttl, conteudo
+0.0, 1, 4, 10, Dados do nó 1 para nó 4
+0.0, 2, 5, 10, Alerta de nó 2 para nó 5
+0.0, 3, 1, 10, Resposta do nó 3 para nó 1
+0.0, 5, 2,  8, Confirmação do nó 5 para nó 2
+0.0, 4, 3,  8, Telemetria do nó 4 para nó 3

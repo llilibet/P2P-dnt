@@ -1,0 +1,7 @@
+# Mensagens — Cenário CADEIA
+# Testa propagação hop-a-hop ao longo da cadeia 1→2→3→4.
+# Formato: tempo, src, dst, ttl, conteudo
+0.0, 1, 4, 10, Mensagem atravessando a cadeia completa 1→2→3→4
+0.0, 1, 3, 10, Mensagem de 1 para nó intermediário 3
+0.0, 2, 4,  8, Mensagem iniciada em 2 para destino 4
+0.0, 4, 1, 10, Mensagem reversa: 4→3→2→1
